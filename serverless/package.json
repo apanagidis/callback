@@ -1,5 +1,5 @@
 {
-  "name": "plugin-queued-callbacks-voicemail-functions",
+  "name": "flex-queued-callbacks-voicemail",
   "version": "0.0.1",
   "private": true,
   "scripts": {

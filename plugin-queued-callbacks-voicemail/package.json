@@ -5,8 +5,7 @@
   "scripts": {
     "postinstall": "flex-plugin pre-script-check",
     "lint": "eslint --ext js src/ serverless/functions",
-    "lint:fix": "npm run lint -- --fix",
-    "prepare": "husky install"
+    "lint:fix": "npm run lint -- --fix"
   },
   "dependencies": {
     "flex-plugin-scripts": "4.1.0",
@@ -22,7 +21,6 @@
     "@twilio/flex-ui": "^1",
     "eslint": "^7.30.0",
     "eslint-config-twilio": "^1.35.1",
-    "husky": "^7.0.1",
     "ora": "^5.4.1",
     "react-test-renderer": "16.5.2",
     "twilio": "^3.67.0"
