@@ -1,5 +1,5 @@
 import { VERSION } from '@twilio/flex-ui';
-import { FlexPlugin } from 'flex-plugin';
+import { FlexPlugin } from '@twilio/flex-plugin';
 import PhoneCallbackIcon from '@material-ui/icons/PhoneCallback';
 import React from 'react';
 import VoicemailIcon from '@material-ui/icons/Voicemail';
