@@ -22,7 +22,6 @@
  *
  *Last Updated: 03/27/2020
  */
-const axios = require('axios');
 const moment = require('moment');
 
 const helpersPath = Runtime.getFunctions().helpers.path;

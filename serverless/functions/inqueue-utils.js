@@ -18,8 +18,6 @@
  *
  *Install/Config: See documentation
  */
-
-const axios = require('axios');
 const JWEValidator = require('twilio-flex-token-validator').functionValidator;
 
 const helpersPath = Runtime.getFunctions().helpers.path;
