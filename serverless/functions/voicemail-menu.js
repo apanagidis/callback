@@ -5,8 +5,8 @@
  *Voicemail tasks are created and linked to the originating call (Flex Insights reporting). The flex plugin provides
  *a UI for management of the voicemail request including a re-queueing capability.
  *
- *name: util_InQueueVoicemailMenu
- *path: /inqueue-voicemail
+ *name: voicemail-menu
+ *path: /voicemail-menu
  *private: CHECKED
  *
  *Function Methods (mode)
@@ -83,25 +83,34 @@ exports.handler = async function (context, event, callback) {
   const twiml = new Twilio.twiml.VoiceResponse();
   const domain = context.DOMAIN_NAME;
 
-  const { CallSid } = event;
-  const { mode } = event;
-  let { taskSid } = event;
+  const {
+    CallSid,
+    mode,
+    taskSid
+  } = event;
+
+  let queryParams;
 
   // Load options
   const { sayOptions, VoiceMailAlertTone } = options;
 
   // main logic for callback methods
   switch (mode) {
-    //  initial logic to cancel the task and prepare the call for Recording
-    case 'pre-process':
+    case 'pre-process': {
+      //  initial logic to cancel the task and prepare the call for Recording
       //  Get taskSid based on taskSid or CallSid
       if (!taskSid) {
+        //TODO: Review this to see if it needs to change
         const taskInfo = await getTask(context, CallSid);
         ({ taskSid } = taskInfo);
       }
 
       // Redirect Call to Voicemail main menu
-      const redirectUrl = `${domain}/inqueue-voicemail?mode=main${taskSid ? `&taskSid=${taskSid}` : ''}`;
+      queryParams = {
+        mode: 'main',
+        ...(taskSid && { taskSid })
+      };
+      const redirectUrl = urlBuilder(domain, webhookPaths.voicemailMenu, queryParams);
       try {
         await client.calls(CallSid).update({ method: 'POST', url: redirectUrl });
       } catch (error) {
@@ -113,14 +122,21 @@ exports.handler = async function (context, event, callback) {
       await cancelTask(client, context.TWILIO_WORKSPACE_SID, taskSid);
 
       return callback(null, '');
-      break;
-
-    case 'main':
+    }
+    case 'main': {
       //  Main logic for Recording the voicemail
+      const actionQueryParams = {
+        mode: 'success',
+        CallSid
+      };
+      const transcribeQueryParams = {
+        mode: 'submitVoicemail',
+        CallSid
+      };
       twiml.say(sayOptions, 'Please leave a message at the tone.  Press the star key when finished.');
       twiml.record({
-        action: `${domain}/inqueue-voicemail?mode=success&CallSid=${CallSid}`,
-        transcribeCallback: `${domain}/inqueue-voicemail?mode=submitVoicemail&CallSid=${CallSid}`,
+        action: urlBuilder(domain, webhookPaths.voicemailMenu, actionQueryParams),
+        transcribeCallback: urlBuilder(domain, webhookPaths.voicemailMenu, transcribeQueryParams),
         method: 'GET',
         playBeep: 'true',
         transcribe: true,
@@ -129,20 +145,18 @@ exports.handler = async function (context, event, callback) {
       });
       twiml.say(sayOptions, 'I did not capture your recording');
       return callback(null, twiml);
-      break;
-
-    //  End the voicemail interaction - hang up call
-    case 'success':
+    }
+    case 'success': {
+      //  End the voicemail interaction - hang up call
       twiml.say(sayOptions, 'Your voicemail has been successfully received... goodbye');
       twiml.hangup();
       return callback(null, twiml);
-      break;
-
-    /*
-     *  handler to submit the callback
-     *  create the task here
-     */
-    case 'submitVoicemail':
+    }
+    case 'submitVoicemail': {
+      /*
+       *  handler to submit the callback
+       *  create the task here
+       */
       /*
        *  Steps
        *  1. Fetch TaskSid ( read task w/ attribute of call_sid);
@@ -159,9 +173,9 @@ exports.handler = async function (context, event, callback) {
       const ringBackUrl = VoiceMailAlertTone.startsWith('https://') ? VoiceMailAlertTone : domain + VoiceMailAlertTone;
       await createVoicemailTask(event, client, taskInfo, ringBackUrl);
       return callback(null, '');
-      break;
-    default:
+    }
+    default: {
       return callback(500, 'Mode not specified');
-      break;
+    }
   }
 };

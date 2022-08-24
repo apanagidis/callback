@@ -89,11 +89,14 @@ exports.handler = async function (context, event, callback) {
   // Load options
   const { sayOptions, CallbackAlertTone } = options;
 
-  const { mode } = event;
-  const PhoneNumberFrom = event.From;
-  const { CallSid } = event;
-  const CallbackNumber = event.cbphone;
-  const { taskSid } = event;
+  const {
+    mode,
+    From: PhoneNumberFrom,
+    CallSid,
+    cbphone: CallbackNumber,
+    taskSid
+  } = event;
+
   let message = '';
   let queryParams;
 
@@ -110,10 +113,8 @@ exports.handler = async function (context, event, callback) {
         mode: 'mainProcess',
         CallSid,
         cbphone: encodeURI(PhoneNumberFrom),
+        ...(taskSid && { taskSid })
       };
-      if (taskSid) {
-        queryParams.taskSid = taskSid;
-      }
       const gatherConfirmation = twiml.gather({
         input: 'dtmf',
         timeout: '2',

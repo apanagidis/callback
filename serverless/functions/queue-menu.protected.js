@@ -25,13 +25,18 @@
 const moment = require('moment');
 
 const helpersPath = Runtime.getFunctions().helpers.path;
-const { getTask, handleError, urlBuilder } = require(helpersPath);
+const {
+  getTask,
+  handleError,
+  urlBuilder,
+  webhookPaths
+} = require(helpersPath);
 const optionsPath = Runtime.getFunctions().options.path;
 const options = require(optionsPath);
 
 // eslint-disable-next-line complexity, sonarjs/cognitive-complexity, func-names
 exports.handler = async function (context, event, callback) {
-  const domain = `https://${context.DOMAIN_NAME}`;
+  const domain = context.DOMAIN_NAME
   const twiml = new Twilio.twiml.VoiceResponse();
 
   // Retrieve options
@@ -45,47 +50,36 @@ exports.handler = async function (context, event, callback) {
     taskSid
   } = event;
 
-  // String constants
-  const webhookPaths = {
-    callbackMenu: 'callback-menu',
-    queueMenu: 'queue-menu',
-    voicemailMenu: 'voicemail-menu'
-  }
-
   // Variables initialization
   let message = '';
   let gather;
+  const digitMap = isCallbackEnabled && isVoicemailEnabled
+    ? { 
+      callbackDigit: 2,
+      voicemailDigit: 3
+    }
+    : isCallbackEnabled
+      ? {
+        callbackDigit: 2
+      }
+      : isVoicemailEnabled
+        ? {
+          voicemailDigit: 2
+        }
+        : {}
 
   // Variables for EWT/PositionInQueue
   let waitMsg = '';
   let posQueueMsg = '';
-
-  const createWebhookUrl = (path, parameters = {}) => {
-    let webhookUrl = `${domain}/${path}`;
-
-    if (Object.keys(parameters).length > 0) {
-      webhookUrl += '?';
-
-      for (const key in parameters) {
-        webhookUrl += `${key}=${parameters[key]}&`;
-      }
-
-      if (webhookUrl.endsWith('&')) {
-        webhookUrl = webhookUrl.slice(0, -1);
-      }
-    }
-
-    return webhookUrl;
-  }
 
   /*
    *  ==========================
    *  BEGIN:  Main logic
    */
   switch (mode) {
-    case 'main':
-      //  logic for retrieval of Estimated Wait Time
+    case 'main': {
       if (getEwt) {
+        //  logic for retrieval of Estimated Wait Time
         //  Get average task acceptance time for TaskQueue
         const ewt = undefined /* TODO: Retrieve EWT from custom service that
           caches average task acceptance time per queue. Developer will need
@@ -97,21 +91,24 @@ exports.handler = async function (context, event, callback) {
         */
         let waitTts = '';
         switch (ewt) {
-          case 0:
+          case 0: {
             waitTts = 'less than a minute...';
             break;
-          case 4:
+          }
+          case 4: {
             waitTts = 'more than 4 minutes...';
             break;
-          default:
+          }
+          default: {
             waitTts = `less than ${ewt + 1}  minutes...`;
+          }
         }
 
         waitMsg += `The estimated wait time is ${waitTts} ....`;
       }
 
-      //  Logic for Position in Queue
       if (getQueuePosition) {
+        //  Logic for Position in Queue
         const taskPositionInfo = undefined /* TODO: Implement scalable logic to retrieve
           the task's position in queue since polling all pending Tasks for each inbound
           queue call will add significant load to API concurrency
@@ -121,18 +118,22 @@ exports.handler = async function (context, event, callback) {
           based on the fetched position in queue value
         */
         switch (taskPositionInfo.position) {
-          case 0:
+          case 0: {
             posQueueMsg = 'Your call is next in queue.... ';
             break;
-          case 1:
+          }
+          case 1: {
             posQueueMsg = 'There is one caller ahead of you...';
             break;
-          case -1:
+          }
+          case -1: {
             posQueueMsg = 'There are more than 20 callers ahead of you...';
             break;
-          default:
+          }
+          default: {
             posQueueMsg = `There are ${taskPositionInfo.position} callers ahead of you...`;
             break;
+          }
         }
       }
 
@@ -143,76 +144,128 @@ exports.handler = async function (context, event, callback) {
       }
       if (isCallbackEnabled || isVoicemailEnabled) {
         message = 'To listen to a menu of options while on hold, press 1 at anytime.';
+        const actionQueryParams = {
+          mode: 'mainProcess',
+          ...(taskSid && { taskSid })
+        };
         gather = twiml.gather({
           input: 'dtmf',
           timeout: '2',
-          action: ``,
+          action: urlBuilder(domain, webhookPaths.queueMenu, actionQueryParams),
         });
         gather.say(sayOptions, message);
         gather.play(domain + holdMusicUrl);
-        twiml.redirect(createWebhookUrl());
-        return callback(null, twiml);
+        const redirectQueryParams = {
+          mode: 'main',
+          ...(taskSid && { taskSid })
+        };
+        twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
+      } else {
+        twiml.play(domain + holdMusicUrl)
+        const redirectQueryParams = {
+          mode: 'main',
+          skipGreeting: 'true',
+          ...(taskSid && { taskSid })
+        };
+        twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
       }
-    case 'mainProcess':
+      return callback(null, twiml);
+    }
+    case 'mainProcess': {
       if (event.Digits === '1') {
         message = 'The following options are available...';
         message += 'Press 1 to remain on hold...';
-        message += 'Press 2 to request a callback...';
-        message += 'Press 3 to leave a voicemail message for the care team...';
+        message += isCallbackEnabled ? `Press ${digitMap[callbackDigit]} to request a callback...` : '';
+        message += isVoicemailEnabled ? `Press ${digitMap[voicemailDigit]} to request a voicemail...` : '';
         message += 'Press the star key to listen to these options again...';
 
+        const actionQueryParams = {
+          mode: 'menuProcess',
+          ...(taskSid && { taskSid })
+        };
         gather = twiml.gather({
           input: 'dtmf',
           timeout: '1',
-          action: `${domain}/queue-menu?mode=menuProcess${taskSid ? `&taskSid=${taskSid}` : ''}`,
+          action: urlBuilder(domain, webhookPaths.queueMenu, actionQueryParams),
         });
         gather.say(sayOptions, message);
         gather.play(domain + holdMusicUrl);
-        twiml.redirect(`${domain}/queue-menu?mode=main${taskSid ? `&taskSid=${taskSid}` : ''}`);
+        const redirectQueryParams = {
+          mode: 'main',
+          ...(taskSid && { taskSid })
+        };
+        twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
+        return callback(null, twiml);
+      } else {
+        twiml.say(sayOptions, 'I did not understand your selection.');
+        const redirectQueryParams = {
+          mode: 'main',
+          skipGreeting: 'true',
+          ...(taskSid && { taskSid })
+        };
+        twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
         return callback(null, twiml);
       }
-      twiml.say(sayOptions, 'I did not understand your selection.');
-      twiml.redirect(`${domain}/queue-menu?mode=main&skipGreeting=true${taskSid ? `&taskSid=${taskSid}` : ''}`);
-      return callback(null, twiml);
-      break;
-    case 'menuProcess':
+    }
+    case 'menuProcess': {
       switch (event.Digits) {
-        //  stay in queue
-        case '1':
+        case '1': {
+          //  stay in queue
           /*
            *   stay in queue
            * twiml.say(sayOptions, 'Please wait for the next available agent');
            */
-          twiml.redirect(`${domain}/queue-menu?mode=main&skipGreeting=true${taskSid ? `&taskSid=${taskSid}` : ''}`);
+          const redirectQueryParams = {
+            mode: 'main',
+            skipGreeting: 'true',
+            ...(taskSid && { taskSid })
+          };
+          twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
           return callback(null, twiml);
-          break;
-        //  request a callback
-        case '2':
-          twiml.redirect(`${domain}/inqueue-callback?mode=main${taskSid ? `&taskSid=${taskSid}` : ''}`);
+        }
+        case '2': {
+          //  request a callback
+          const redirectQueryParams = {
+            mode: 'main',
+            ...(taskSid && { taskSid })
+          };
+          twiml.redirect(urlBuilder(domain, webhookPaths.callbackMenu, redirectQueryParams));
           return callback(null, twiml);
-          break;
-        //  leave a voicemail
-        case '3':
-          twiml.redirect(`${domain}/inqueue-voicemail?mode=pre-process${taskSid ? `&taskSid=${taskSid}` : ''}`);
+        }
+        case '3': {
+          //  leave a voicemail
+          const redirectQueryParams = {
+            mode: 'pre-process',
+            ...(taskSid && { taskSid })
+          };
+          twiml.redirect(urlBuilder(domain, webhookPaths.voicemailMenu, redirectQueryParams));
           return callback(null, twiml);
-          break;
-
-        // listen options menu again
-        case '*':
-          twiml.redirect(`${domain}/queue-menu?mode=mainProcess&Digits=1${taskSid ? `&taskSid=${taskSid}` : ''}`);
+        }
+        case '*': {
+          // listen options menu again
+          const redirectQueryParams = {
+            mode: 'mainProcess',
+            Digits: '1',
+            ...(taskSid && { taskSid })
+          };
+          twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
           return callback(null, twiml);
-          break;
-
-        //  listen to menu again
-        default:
+        }
+        default: {
+          //  listen to menu again
           twiml.say(sayOptions, 'I did not understand your selection.');
-          twiml.redirect(`${domain}/queue-menu?mode=mainProcess&Digits=1${taskSid ? `&taskSid=${taskSid}` : ''}`);
+          const redirectQueryParams = {
+            mode: 'mainProcess',
+            Digits: '1',
+            ...(taskSid && { taskSid })
+          };
+          twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
           return callback(null, twiml);
-          break;
+        }
       }
-      break;
-    default:
+    }
+    default: {
       return callback(500, null);
-      break;
+    }
   }
 };
