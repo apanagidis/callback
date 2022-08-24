@@ -26,7 +26,14 @@
  */
 
 const helpersPath = Runtime.getFunctions().helpers.path;
-const { getTask, cancelTask, getTime, handleError } = require(helpersPath);
+const { 
+  cancelTask,
+  getTask,
+  getTime,
+  handleError,
+  urlBuilder,
+  webhookPaths
+} = require(helpersPath);
 const optionsPath = Runtime.getFunctions().options.path;
 const options = require(optionsPath);
 
@@ -74,7 +81,7 @@ async function createVoicemailTask(event, client, taskInfo, ringback) {
 exports.handler = async function (context, event, callback) {
   const client = context.getTwilioClient();
   const twiml = new Twilio.twiml.VoiceResponse();
-  const domain = `https://${context.DOMAIN_NAME}`;
+  const domain = context.DOMAIN_NAME;
 
   const { CallSid } = event;
   const { mode } = event;

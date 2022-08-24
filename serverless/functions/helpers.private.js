@@ -3,6 +3,14 @@
 
 const moment = require('moment-timezone');
 
+// String constants
+const webhookPaths = {
+  callbackMenu: 'callback-menu',
+  queueMenu: 'queue-menu',
+  voicemailMenu: 'voicemail-menu'
+};
+
+// Helper functions
 function handleError(error) {
   let message = '';
   if (error.message) {
@@ -102,13 +110,20 @@ function getTime(timeZone) {
  *  Build a url with query parameters
  *
  * @param {string} url Base URL
- * @param {Object} queries Key-value pairs for query parameters
+ * @param {Object} queryParams Key-value pairs for query parameters
  * @returns {string}
  */
-const urlBuilder = (url, queries) => {
+const urlBuilder = (domain, path, queryParams = {}) => {
   const params = new URLSearchParams();
-  Object.entries(queries).forEach(([key, value]) => params.append(key, value));
-  return `${url}?${params}`;
+  Object.entries(queryParams).forEach(([key, value]) => params.append(key, value));
+  return `https://${domain}/${path}?${params}`;
 };
 
-module.exports = { getTask, handleError, getTime, cancelTask, urlBuilder };
+module.exports = {
+  cancelTask,
+  getTask,
+  getTime,
+  handleError,
+  urlBuilder,
+  webhookPaths
+};

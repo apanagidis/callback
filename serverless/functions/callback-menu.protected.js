@@ -6,8 +6,8 @@
  *Callback task are created and linked to the originating call (Flex Insights reporting). The flex plugin provides
  *a UI for management of the callback request including a re-queueing capability.capability
  *
- *name: util_InQueueCallBackMenu
- *path: /inqueue-callback
+ *name: callback-menu
+ *path: /callback-menu
  *private: CHECKED
  *
  *Function Methods (mode)
@@ -27,7 +27,14 @@
  */
 
 const helpersPath = Runtime.getFunctions().helpers.path;
-const { getTask, handleError, getTime, cancelTask, urlBuilder } = require(helpersPath);
+const {
+  cancelTask,
+  getTask,
+  getTime,
+  handleError,
+  urlBuilder,
+  webhookPaths
+} = require(helpersPath);
 const optionsPath = Runtime.getFunctions().options.path;
 const options = require(optionsPath);
 
@@ -77,7 +84,7 @@ exports.handler = async function (context, event, callback) {
   const client = context.getTwilioClient();
   const twiml = new Twilio.twiml.VoiceResponse();
 
-  const domain = `https://${context.DOMAIN_NAME}`;
+  const domain = context.DOMAIN_NAME;
 
   // Load options
   const { sayOptions, CallbackAlertTone } = options;
@@ -88,105 +95,100 @@ exports.handler = async function (context, event, callback) {
   const CallbackNumber = event.cbphone;
   const { taskSid } = event;
   let message = '';
-  let queries;
+  let queryParams;
 
   // main logic for callback methods
   switch (mode) {
     //  present main menu options
-    case 'main':
+    case 'main': {
       // main menu
       message = `You have requested a callback at ${formatPhoneNumber(PhoneNumberFrom)}...`;
       message += 'If this is correct, press 1...';
-      message += 'Press 2 to be called at different number';
+      message += 'Press 2 to be called at a different number';
 
-      queries = {
+      queryParams = {
         mode: 'mainProcess',
         CallSid,
         cbphone: encodeURI(PhoneNumberFrom),
       };
       if (taskSid) {
-        queries.taskSid = taskSid;
+        queryParams.taskSid = taskSid;
       }
       const gatherConfirmation = twiml.gather({
         input: 'dtmf',
         timeout: '2',
-        action: urlBuilder(`${domain}/inqueue-callback`, queries),
+        action: urlBuilder(domain, webhookPaths.callbackMenu, queryParams),
       });
       gatherConfirmation.say(sayOptions, message);
-      twiml.redirect(`${domain}/queue-menu?mode=main${taskSid ? `&taskSid=${taskSid}` : ''}`);
-      return callback(null, twiml);
-      break;
+      queryParams = {
+        mode: 'main',
+        ...(taskSid && { taskSid })
+      };
 
-    //  process main menu selections
-    case 'mainProcess':
+      twiml.redirect(domain, webhookPaths.queueMenu, queryParams);
+      return callback(null, twiml);
+    }
+    case 'mainProcess': {
+      //  process main menu selections
       switch (event.Digits) {
         //  existing number
-        case '1':
-          // redirect to submitCalBack
-          queries = {
+        case '1': {
+          // redirect to submitCallBack
+          queryParams = {
             mode: 'submitCallback',
             CallSid,
             cbphone: encodeURI(CallbackNumber),
+            ...(taskSid && { taskSid })
           };
-          if (taskSid) {
-            queries.taskSid = taskSid;
-          }
-          twiml.redirect(urlBuilder(`${domain}/inqueue-callback`, queries));
+          twiml.redirect(urlBuilder(domain, webhookPaths.callbackMenu, queryParams));
           return callback(null, twiml);
-          break;
-        //  new number
-        case '2':
+        }
+        case '2': {
+          //  new number
           message = 'Using your keypad, enter in your phone number...';
           message += 'Press the pound sign when you are done...';
 
-          queries = {
+          queryParams = {
             mode: 'newNumber',
             CallSid,
             cbphone: encodeURI(CallbackNumber),
+            ...(taskSid && { taskSid })
           };
-          if (taskSid) {
-            queries.taskSid = taskSid;
-          }
           const GatherNewNumber = twiml.gather({
             input: 'dtmf',
             timeout: '10',
             finishOnKey: '#',
-            action: urlBuilder(`${domain}/inqueue-callback`, queries),
+            action: urlBuilder(domain, webhookPaths.callbackMenu, queryParams),
           });
           GatherNewNumber.say(sayOptions, message);
 
-          queries.mode = 'main';
-          twiml.redirect(urlBuilder(`${domain}/inqueue-callback`, queries));
+          queryParams.mode = 'main';
+          twiml.redirect(urlBuilder(domain, webhookPaths.callbackMenu, queryParams));
           return callback(null, twiml);
-          break;
-        case '*':
-          queries = {
+        }
+        case '*': {
+          queryParams = {
             mode: 'main',
             skipGreeting: true,
             CallSid,
+            ...(taskSid && { taskSid })
           };
-          if (taskSid) {
-            queries.taskSid = taskSid;
-          }
-          twiml.redirect(urlBuilder(`${domain}/inqueue-callback`, queries));
+          twiml.redirect(urlBuilder(domain, webhookPaths.callbackMenu, queryParams));
           return callback(null, twiml);
-          break;
-        default:
-          queries = {
+        }
+        default: {
+          queryParams = {
             mode: 'main',
+            ...(taskSid && { taskSid })
           };
-          if (taskSid) {
-            queries.taskSid = taskSid;
-          }
           twiml.say(sayOptions, 'I did not understand your selection.');
-          twiml.redirect(urlBuilder(`${domain}/inqueue-callback`, queries));
+          twiml.redirect(urlBuilder(domain, webhookPaths.callbackMenu, queryParams));
           return callback(null, twiml);
-          break;
+        }
       }
-      break;
-
-    //  present new number menu selections
-    case 'newNumber':
+    }
+    case 'newNumber': {
+      //  present new number menu selections
       const NewPhoneNumber = event.Digits;
       // TODO: Handle country code in new number
 
@@ -195,29 +197,26 @@ exports.handler = async function (context, event, callback) {
       message += 'Press 2 to re-enter your number';
       message += 'Press the star key to return to the main menu';
 
-      queries = {
+      queryParams = {
         mode: 'mainProcess',
         CallSid,
         cbphone: encodeURI(NewPhoneNumber),
+        ...(taskSid && { taskSid })
       };
-      if (taskSid) {
-        queries.taskSid = taskSid;
-      }
       const GatherConfirmNewNumber = twiml.gather({
         input: 'dtmf',
         timeout: '5',
         finishOnKey: '#',
-        action: urlBuilder(`${domain}/inqueue-callback`, queries),
+        action: urlBuilder(domain, webhookPaths.callbackMenu, queryParams),
       });
       GatherConfirmNewNumber.say(sayOptions, message);
 
-      queries.mode = 'main';
-      twiml.redirect(urlBuilder(`${domain}/inqueue-callback`, queries));
+      queryParams.mode = 'main';
+      twiml.redirect(urlBuilder(domain, webhookPaths.callbackMenu, queryParams));
       return callback(null, twiml);
-      break;
-
-    //  handler to submit the callback
-    case 'submitCallback':
+    }
+    case 'submitCallback': {
+      //  handler to submit the callback
       /*
        *  Steps
        *  1. Fetch TaskSid ( read task w/ attribute of call_sid);
@@ -243,9 +242,9 @@ exports.handler = async function (context, event, callback) {
       twiml.say(sayOptions, 'Thank you for your call.');
       twiml.hangup();
       return callback(null, twiml);
-      break;
-    default:
+    }
+    default: {
       return callback(500, 'Mode not specified');
-      break;
+    }
   }
 };

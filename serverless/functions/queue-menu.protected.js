@@ -25,99 +25,58 @@
 const moment = require('moment');
 
 const helpersPath = Runtime.getFunctions().helpers.path;
-const { getTask, handleError } = require(helpersPath);
+const { getTask, handleError, urlBuilder } = require(helpersPath);
 const optionsPath = Runtime.getFunctions().options.path;
 const options = require(optionsPath);
 
-//  retrieve workflow cummulative statistics for Estimated wait time
-async function getWorkflowCummStats(client, workspaceSid, workflowSid, statPeriod) {
-  return client.taskrouter
-    .workspaces(workspaceSid)
-    .workflows(workflowSid)
-    .cumulativeStatistics({
-      Minutes: statPeriod,
-    })
-    .fetch()
-    .then((workflowStatistics) => {
-      return {
-        status: 'success',
-        topic: 'getWorkflowCummStats',
-        action: 'getWorkflowCummStats',
-        data: workflowStatistics,
-      };
-    })
-    .catch((error) => {
-      handleError(error);
-      return {
-        status: 'error',
-        topic: 'getWorkflowCummStats',
-        action: 'getWorkflowCummStats',
-        data: error,
-      };
-    });
-}
-
-function getTaskPositionInQueue(client, taskInfo) {
-  return client.taskrouter
-    .workspaces(taskInfo.workspaceSid)
-    .tasks.list({
-      assignmentStatus: 'pending, reserved',
-      taskQueueName: taskInfo.taskQueueName,
-      ordering: 'DateCreated:asc,Priority:desc',
-      limit: 20,
-    })
-    .then((taskList) => {
-      const taskPosition = taskList.findIndex((task) => task.sid === taskInfo.taskSid);
-      return {
-        status: 'success',
-        topic: 'getTaskList',
-        action: 'getTaskList',
-        position: taskPosition,
-        data: taskList,
-      };
-    })
-    .catch((error) => {
-      handleError(error);
-      return {
-        status: 'error',
-        topic: 'getTaskList',
-        action: 'getTaskList',
-        data: error,
-      };
-    });
-}
-
-function getAverageWaitTime(t) {
-  const durationInSeconds = moment.duration(t.avg, 'seconds');
-  return {
-    type: 'avgWaitTime',
-    hours: durationInSeconds._data.hours,
-    minutes: durationInSeconds._data.minutes,
-    seconds: durationInSeconds._data.seconds,
-  };
-}
-
 // eslint-disable-next-line complexity, sonarjs/cognitive-complexity, func-names
 exports.handler = async function (context, event, callback) {
-  const client = context.getTwilioClient();
   const domain = `https://${context.DOMAIN_NAME}`;
   const twiml = new Twilio.twiml.VoiceResponse();
 
   // Retrieve options
-  const { sayOptions, holdMusicUrl, statPeriod, getEwt, getQueuePosition } = options;
+  const { sayOptions, holdMusicUrl, getEwt, getQueuePosition } = options;
 
   // Retrieve event arguments
-  const CallSid = event.CallSid || '';
-  let { taskSid } = event;
+  const {
+    isCallbackEnabled,
+    isVoicemailEnabled,
+    mode,
+    taskSid
+  } = event;
+
+  // String constants
+  const webhookPaths = {
+    callbackMenu: 'callback-menu',
+    queueMenu: 'queue-menu',
+    voicemailMenu: 'voicemail-menu'
+  }
 
   // Variables initialization
-  const { mode } = event;
   let message = '';
+  let gather;
 
-  // Variables for EWT/PostionInQueue
+  // Variables for EWT/PositionInQueue
   let waitMsg = '';
   let posQueueMsg = '';
-  let gather;
+
+  const createWebhookUrl = (path, parameters = {}) => {
+    let webhookUrl = `${domain}/${path}`;
+
+    if (Object.keys(parameters).length > 0) {
+      webhookUrl += '?';
+
+      for (const key in parameters) {
+        webhookUrl += `${key}=${parameters[key]}&`;
+      }
+
+      if (webhookUrl.endsWith('&')) {
+        webhookUrl = webhookUrl.slice(0, -1);
+      }
+    }
+
+    return webhookUrl;
+  }
 
   /*
    *  ==========================
@@ -126,25 +85,16 @@ exports.handler = async function (context, event, callback) {
   switch (mode) {
     case 'main':
       //  logic for retrieval of Estimated Wait Time
-      let taskInfo;
-      if (getEwt || getQueuePosition) {
-        taskInfo = await getTask(context, taskSid || CallSid);
-        if (!taskSid) {
-          ({ taskSid } = taskInfo);
-        }
-      }
+      if (getEwt) {
+        //  Get average task acceptance time for TaskQueue
+        const ewt = undefined /* TODO: Retrieve EWT from custom service that
+          caches average task acceptance time per queue. Developer will need
+          to pass the target TaskQueue SID as a "waitUrl" query parameter
+        */
 
-      if (getEwt && taskInfo.status === 'success') {
-        const workflowStats = await getWorkflowCummStats(
-          client,
-          context.TWILIO_WORKSPACE_SID,
-          taskInfo.workflowSid,
-          statPeriod,
-        );
-        //  Get max, avg, min wait times for the workflow
-        const t = workflowStats.data.waitDurationUntilAccepted;
-        const ewt = getAverageWaitTime(t).minutes;
-
+        /* TODO: Modify the switch statement to play the desired messaging
+          based on the fetched EWT value
+        */
         let waitTts = '';
         switch (ewt) {
           case 0:
@@ -161,8 +111,15 @@ exports.handler = async function (context, event, callback) {
       }
 
       //  Logic for Position in Queue
-      if (getQueuePosition && taskInfo.status === 'success') {
-        const taskPositionInfo = await getTaskPositionInQueue(client, taskInfo);
+      if (getQueuePosition) {
+        const taskPositionInfo = undefined /* TODO: Implement scalable logic to retrieve
+          the task's position in queue since polling all pending Tasks for each inbound
+          queue call will add significant load to API concurrency
+        */
+
+        /* TODO: Modify the switch statement to play the desired messaging
+          based on the fetched position in queue value
+        */
         switch (taskPositionInfo.position) {
           case 0:
             posQueueMsg = 'Your call is next in queue.... ';
@@ -184,17 +141,18 @@ exports.handler = async function (context, event, callback) {
         initGreeting += '...Please wait while we direct your call to the next available specialist...';
         twiml.say(sayOptions, initGreeting);
       }
-      message = 'To listen to a menu of options while on hold, press 1 at anytime.';
-      gather = twiml.gather({
-        input: 'dtmf',
-        timeout: '2',
-        action: `${domain}/queue-menu?mode=mainProcess${taskSid ? `&taskSid=${taskSid}` : ''}`,
-      });
-      gather.say(sayOptions, message);
-      gather.play(domain + holdMusicUrl);
-      twiml.redirect(`${domain}/queue-menu?mode=main${taskSid ? `&taskSid=${taskSid}` : ''}`);
-      return callback(null, twiml);
-      break;
+      if (isCallbackEnabled || isVoicemailEnabled) {
+        message = 'To listen to a menu of options while on hold, press 1 at anytime.';
+        gather = twiml.gather({
+          input: 'dtmf',
+          timeout: '2',
+          action: ``,
+        });
+        gather.say(sayOptions, message);
+        gather.play(domain + holdMusicUrl);
+        twiml.redirect(createWebhookUrl());
+        return callback(null, twiml);
+      }
     case 'mainProcess':
       if (event.Digits === '1') {
         message = 'The following options are available...';

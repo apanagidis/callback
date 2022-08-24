@@ -1,16 +1,16 @@
 import { VERSION } from '@twilio/flex-ui';
 import { FlexPlugin } from '@twilio/flex-plugin';
-import PhoneCallbackIcon from '@material-ui/icons/PhoneCallback';
 import React from 'react';
+import PhoneCallbackIcon from '@material-ui/icons/PhoneCallback';
 import VoicemailIcon from '@material-ui/icons/Voicemail';
 
 import { logger } from './helpers';
 import reducers, { namespace } from './states';
 import { CallbackComponent, VoicemailComponent } from './components';
 
-const PLUGIN_NAME = 'InQueueMessagingPlugin';
+const PLUGIN_NAME = 'QueuedCallbacksVoicemailPlugin';
 
-export default class InQueueMessagingPlugin extends FlexPlugin {
+export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
   constructor() {
     super(PLUGIN_NAME);
   }
@@ -33,15 +33,15 @@ export default class InQueueMessagingPlugin extends FlexPlugin {
    * Registers the {@link CallbackComponent}
    */
   registerCallbackChannel(flex, manager) {
-    // Create Voicemail Channel
+    // Create Callback Channel
     const CallbackChannel = flex.DefaultTaskChannels.createDefaultTaskChannel(
       'callback',
-      (task) => task.taskChannelUniqueName === 'callback',
+      (task) => task.taskChannelUniqueName === 'voice' && task.attributes.type === 'callback',
       'CallbackIcon',
       'CallbackIcon',
       'palegreen',
     );
-    // Basic Voicemail Channel Settings
+    // Basic Callback Channel Settings
     CallbackChannel.templates.TaskListItem.firstLine = (task) => `${task.queueName}: ${task.attributes.name}`;
     CallbackChannel.templates.TaskCanvasHeader.title = (task) => `${task.queueName}: ${task.attributes.name}`;
     CallbackChannel.templates.IncomingTaskCanvas.firstLine = (task) => task.queueName;
@@ -52,9 +52,9 @@ export default class InQueueMessagingPlugin extends FlexPlugin {
     // Register Lead Channel
     flex.TaskChannels.register(CallbackChannel);
 
-    flex.TaskInfoPanel.Content.replace(<CallbackComponent key="demo-component" manager={manager} />, {
+    flex.TaskInfoPanel.Content.replace(<CallbackComponent key="callback-task-info-panel" manager={manager} />, {
       sortOrder: -1,
-      if: (props) => props.task.attributes.taskType === 'callback',
+      if: (props) => props.task.attributes.type === 'callback',
     });
   }
 
@@ -64,7 +64,7 @@ export default class InQueueMessagingPlugin extends FlexPlugin {
   registerVoicemailChannel(flex, manager) {
     const VoiceMailChannel = flex.DefaultTaskChannels.createDefaultTaskChannel(
       'voicemail',
-      (task) => task.taskChannelUniqueName === 'voicemail',
+      (task) => task.taskChannelUniqueName === 'voice' && task.attributes.type === 'voicemail',
       'VoicemailIcon',
       'VoicemailIcon',
       'deepskyblue',
@@ -80,9 +80,9 @@ export default class InQueueMessagingPlugin extends FlexPlugin {
     // Register Lead Channel
     flex.TaskChannels.register(VoiceMailChannel);
 
-    flex.TaskInfoPanel.Content.replace(<VoicemailComponent key="demo-component" manager={manager} />, {
+    flex.TaskInfoPanel.Content.replace(<VoicemailComponent key="voicemail-task-info-panel" manager={manager} />, {
       sortOrder: -1,
-      if: (props) => props.task.attributes.taskType === 'voicemail',
+      if: (props) => props.task.attributes.type === 'voicemail',
     });
   }
 

@@ -1,5 +1,5 @@
 import * as FlexPlugin from '@twilio/flex-plugin';
 
-import InQueueMessagingPlugin from './InQueueMessagingPlugin';
+import QueuedCallbacksVoicemailPlugin from './QueuedCallbacksVoicemailPlugin';
 
-FlexPlugin.loadPlugin(InQueueMessagingPlugin);
+FlexPlugin.loadPlugin(QueuedCallbacksVoicemailPlugin);

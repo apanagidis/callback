@@ -117,18 +117,18 @@ Env Variables
 ✔ Serverless project successfully deployed
 
 Deployment Details
-Domain: plugin-queued-callbacks-voicemail-functions-xxxx-dev.twil.io
+Domain: flex-queued-callbacks-voicemail-xxxx-dev.twil.io
 Service:
-  plugin-queued-callbacks-voicemail-functions 
+  flex-queued-callbacks-voicemail 
 Functions:
-  https://plugin-queued-callbacks-voicemail-functions-xxxx-dev.twil.io/inqueue-callback
-  https://plugin-queued-callbacks-voicemail-functions-xxxx-dev.twil.io/inqueue-utils  
-  https://plugin-queued-callbacks-voicemail-functions-xxxx-dev.twil.io/queue-menu
-  https://plugin-queued-callbacks-voicemail-functions-xxxx-dev.twil.io/inqueue-voicemail
+  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/callback-menu
+  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/inqueue-utils
+  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/queue-menu
+  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/inqueue-voicemail
 
 Assets:
-  https://plugin-queued-callbacks-voicemail-functions-xxxx-dev.twil.io/assets/alertTone.mp3
-  https://plugin-queued-callbacks-voicemail-functions-xxxx-dev.twil.io/assets/guitar_music.mp3
+  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/assets/alertTone.mp3
+  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/assets/guitar_music.mp3
 ```
 
 _Note:_ Copy and save the domain returned when you deploy a function. You will need it in the next step. If you forget to copy the domain, you can also find it by navigating to [Functions > API](https://www.twilio.com/console/functions/api) in the Twilio Console.
@@ -148,7 +148,7 @@ Run the following commands in the plugin root directory. We will leverage the Tw
 	plugin-queued-callbacks-and-voicemail $ mv .env.example .env
 	
 	# .env
-	REACT_APP_SERVICE_BASE_URL=https://plugin-queued-callbacks-voicemail-functions-4135-dev.twil.io
+	REACT_APP_SERVICE_BASE_URL=https://flex-queued-callbacks-voicemail-4135-dev.twil.io
 	```
 
 3. When you are ready to deploy the plugin, run the following in a command shell:
