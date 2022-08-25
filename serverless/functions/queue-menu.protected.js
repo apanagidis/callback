@@ -55,16 +55,16 @@ exports.handler = async function (context, event, callback) {
   let gather;
   const digitMap = isCallbackEnabled && isVoicemailEnabled
     ? { 
-      callbackDigit: 2,
-      voicemailDigit: 3
+      callbackDigit: '2',
+      voicemailDigit: '3'
     }
     : isCallbackEnabled
       ? {
-        callbackDigit: 2
+        callbackDigit: '2'
       }
       : isVoicemailEnabled
         ? {
-          voicemailDigit: 2
+          voicemailDigit: '2'
         }
         : {}
 
@@ -175,8 +175,8 @@ exports.handler = async function (context, event, callback) {
       if (event.Digits === '1') {
         message = 'The following options are available...';
         message += 'Press 1 to remain on hold...';
-        message += isCallbackEnabled ? `Press ${digitMap[callbackDigit]} to request a callback...` : '';
-        message += isVoicemailEnabled ? `Press ${digitMap[voicemailDigit]} to request a voicemail...` : '';
+        message += isCallbackEnabled ? `Press ${digitMap.callbackDigit} to request a callback...` : '';
+        message += isVoicemailEnabled ? `Press ${digitMap.voicemailDigit} to request a voicemail...` : '';
         message += 'Press the star key to listen to these options again...';
 
         const actionQueryParams = {
@@ -223,7 +223,7 @@ exports.handler = async function (context, event, callback) {
           twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
           return callback(null, twiml);
         }
-        case '2': {
+        case digitMap.callbackDigit: {
           //  request a callback
           const redirectQueryParams = {
             mode: 'main',
@@ -232,7 +232,7 @@ exports.handler = async function (context, event, callback) {
           twiml.redirect(urlBuilder(domain, webhookPaths.callbackMenu, redirectQueryParams));
           return callback(null, twiml);
         }
-        case '3': {
+        case digitMap.voicemailDigit: {
           //  leave a voicemail
           const redirectQueryParams = {
             mode: 'pre-process',
