@@ -1,13 +1,12 @@
-import { VERSION } from '@twilio/flex-ui';
+import { VERSION, TaskHelper } from '@twilio/flex-ui';
 import { FlexPlugin } from '@twilio/flex-plugin';
 import React from 'react';
-import PhoneCallbackIcon from '@material-ui/icons/PhoneCallback';
 import VoicemailIcon from '@material-ui/icons/Voicemail';
+import { ChevronDoubleRightIcon } from '@twilio-paste/icons/esm/ChevronDoubleRightIcon';
 
-import { logger } from './helpers';
 import reducers, { namespace } from './states';
 import { registerListeners } from './listeners';
-import { CallbackComponent, VoicemailComponent } from './components';
+import { VoicemailComponent } from './components';
 
 const PLUGIN_NAME = 'QueuedCallbacksVoicemailPlugin';
 
@@ -28,7 +27,10 @@ export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
     registerListeners(flex, manager);
 
     this.registerCallbackChannel(flex, manager);
-    this.registerVoicemailChannel(flex, manager);
+    //this.registerVoicemailChannel(flex, manager);
+
+    manager.strings.TaskAssigned = "Assigned | {{helper.durationSinceUpdate}}"
+    manager.strings.TaskWrapup = "Wrap up | {{helper.durationSinceUpdate}}";
   }
 
   /**
@@ -36,6 +38,7 @@ export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
    */
   registerCallbackChannel(flex, manager) {
     // Create Callback Channel
+    
     const CallbackChannel = flex.DefaultTaskChannels.createDefaultTaskChannel(
       'callback',
       (task) => task.taskChannelUniqueName === 'voice' && task.attributes.type === 'callback',
@@ -44,21 +47,48 @@ export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
       'palegreen',
     );
     // Basic Callback Channel Settings
-    CallbackChannel.templates.TaskListItem.firstLine = (task) => `${task.queueName}: ${task.attributes.name}`;
-    CallbackChannel.templates.TaskCanvasHeader.title = (task) => `${task.queueName}: ${task.attributes.name}`;
+    CallbackChannel.templates.TaskListItem.firstLine = (task) => `${task.attributes.name}`;
+    CallbackChannel.templates.TaskCanvasHeader.title = (task) => `${task.attributes.name}`;
+    CallbackChannel.templates.TaskCanvasHeader.endButton.Wrapping = 'Complete';
     CallbackChannel.templates.IncomingTaskCanvas.firstLine = (task) => task.queueName;
-    CallbackChannel.templates.TaskLineCallWrapup = "Wrap up | {{helper.durationSinceUpdate}}";
     // Lead Channel Icon
-    CallbackChannel.icons.active = <PhoneCallbackIcon key="active-callback-icon" />;
-    CallbackChannel.icons.list = <PhoneCallbackIcon key="list-callback-icon" />;
-    CallbackChannel.icons.main = <PhoneCallbackIcon key="main-callback-icon" />;
+    const callbackChannelTaskItemIcon = (
+      <React.Fragment>
+        <ChevronDoubleRightIcon decorative={true} />
+      </React.Fragment>
+    );
+    CallbackChannel.icons.active = callbackChannelTaskItemIcon;
+    CallbackChannel.icons.list = callbackChannelTaskItemIcon;
+    CallbackChannel.icons.main = callbackChannelTaskItemIcon;
+
+    // Modified Components
+    const hasMatchingOutboundCallTask = (props) => {
+      const taskAttributes = props.task.attributes;
+      const conversationId = taskAttributes?.conversations?.conversation_id;
+      const workerTasks = manager.store.getState().flex?.worker?.tasks || new Map();
+
+      let result = false;
+
+      for (const task of workerTasks.values()) {
+        if (TaskHelper.isOutboundCallTask(task) &&
+          conversationId === task?.attributes?.conversations?.conversation_id
+        ) {
+          result = true;
+          break;
+        }
+      }
+
+      return result;
+    };
+    CallbackChannel.removedComponents = [{
+      target: 'TaskCanvasHeader',
+      key: 'actions',
+      options: {
+        if: hasMatchingOutboundCallTask
+      }
+    }];
     // Register Lead Channel
     flex.TaskChannels.register(CallbackChannel);
-
-    flex.TaskInfoPanel.Content.replace(<CallbackComponent key="callback-task-info-panel" manager={manager} />, {
-      sortOrder: -1,
-      if: (props) => props.task.attributes.type === 'callback',
-    });
   }
 
   /**
