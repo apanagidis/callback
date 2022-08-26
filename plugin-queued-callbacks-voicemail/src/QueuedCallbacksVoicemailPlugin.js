@@ -6,6 +6,7 @@ import VoicemailIcon from '@material-ui/icons/Voicemail';
 
 import { logger } from './helpers';
 import reducers, { namespace } from './states';
+import { registerListeners } from './listeners';
 import { CallbackComponent, VoicemailComponent } from './components';
 
 const PLUGIN_NAME = 'QueuedCallbacksVoicemailPlugin';
@@ -24,6 +25,7 @@ export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
    */
   async init(flex, manager) {
     this.registerReducers(manager);
+    registerListeners(flex, manager);
 
     this.registerCallbackChannel(flex, manager);
     this.registerVoicemailChannel(flex, manager);
@@ -45,6 +47,7 @@ export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
     CallbackChannel.templates.TaskListItem.firstLine = (task) => `${task.queueName}: ${task.attributes.name}`;
     CallbackChannel.templates.TaskCanvasHeader.title = (task) => `${task.queueName}: ${task.attributes.name}`;
     CallbackChannel.templates.IncomingTaskCanvas.firstLine = (task) => task.queueName;
+    CallbackChannel.templates.TaskLineCallWrapup = "Wrap up | {{helper.durationSinceUpdate}}";
     // Lead Channel Icon
     CallbackChannel.icons.active = <PhoneCallbackIcon key="active-callback-icon" />;
     CallbackChannel.icons.list = <PhoneCallbackIcon key="list-callback-icon" />;
