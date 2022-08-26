@@ -44,26 +44,27 @@ async function createCallbackTask(client, phoneNumber, taskInfo, ringback) {
   const taskAttributes = JSON.parse(taskInfo.data.attributes);
 
   const newTaskAttributes = {
-    taskType: 'callback',
+    type: 'callback',
     ringback,
     to: phoneNumber || taskAttributes.caller,
     direction: 'inbound',
     name: `Callback: ${phoneNumber || taskAttributes.caller}`,
     from: taskAttributes.called,
     callTime: time,
-    queueTargetName: taskInfo.taskQueueName,
-    queueTargetSid: taskInfo.taskQueueSid,
-    workflowTargetSid: taskInfo.workflowSid,
     // eslint-disable-next-line camelcase
     ui_plugin: { cbCallButtonAccessibility: false },
     placeCallRetry: 1,
+    conversations: {
+      ...taskAttributes.conversations,
+      conversation_id: taskInfo.taskSid,
+      communication_channel: 'Callback'
+    }
   };
   try {
     await client.taskrouter.workspaces(taskInfo.workspaceSid).tasks.create({
       attributes: JSON.stringify(newTaskAttributes),
       type: 'callback',
-      taskChannel: 'callback',
-      priority: options.CallbackTaskPriority,
+      taskChannel: 'voice',
       workflowSid: taskInfo.workflowSid,
     });
   } catch (error) {
@@ -76,7 +77,7 @@ function formatPhoneNumber(phoneNumber) {
   if (phoneNumber.startsWith('+')) {
     phoneNumber = phoneNumber.slice(1);
   }
-  return phoneNumber.split('').join('...');
+  return phoneNumber.split('').join('..');
 }
 
 // eslint-disable-next-line sonarjs/cognitive-complexity
@@ -94,7 +95,9 @@ exports.handler = async function (context, event, callback) {
     From: PhoneNumberFrom,
     CallSid,
     cbphone: CallbackNumber,
-    taskSid
+    taskSid,
+    isCallbackEnabled,
+    isVoicemailEnabled,
   } = event;
 
   let message = '';
@@ -111,7 +114,6 @@ exports.handler = async function (context, event, callback) {
 
       queryParams = {
         mode: 'mainProcess',
-        CallSid,
         cbphone: encodeURI(PhoneNumberFrom),
         ...(taskSid && { taskSid })
       };
@@ -123,10 +125,12 @@ exports.handler = async function (context, event, callback) {
       gatherConfirmation.say(sayOptions, message);
       queryParams = {
         mode: 'main',
-        ...(taskSid && { taskSid })
+        ...(taskSid && { taskSid }),
+        ...(isCallbackEnabled && { isCallbackEnabled }),
+        ...(isVoicemailEnabled && { isVoicemailEnabled }),
       };
 
-      twiml.redirect(domain, webhookPaths.queueMenu, queryParams);
+      twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, queryParams));
       return callback(null, twiml);
     }
     case 'mainProcess': {
@@ -137,7 +141,6 @@ exports.handler = async function (context, event, callback) {
           // redirect to submitCallBack
           queryParams = {
             mode: 'submitCallback',
-            CallSid,
             cbphone: encodeURI(CallbackNumber),
             ...(taskSid && { taskSid })
           };
@@ -151,7 +154,6 @@ exports.handler = async function (context, event, callback) {
 
           queryParams = {
             mode: 'newNumber',
-            CallSid,
             cbphone: encodeURI(CallbackNumber),
             ...(taskSid && { taskSid })
           };
@@ -171,7 +173,6 @@ exports.handler = async function (context, event, callback) {
           queryParams = {
             mode: 'main',
             skipGreeting: true,
-            CallSid,
             ...(taskSid && { taskSid })
           };
           twiml.redirect(urlBuilder(domain, webhookPaths.callbackMenu, queryParams));
@@ -200,7 +201,6 @@ exports.handler = async function (context, event, callback) {
 
       queryParams = {
         mode: 'mainProcess',
-        CallSid,
         cbphone: encodeURI(NewPhoneNumber),
         ...(taskSid && { taskSid })
       };
@@ -229,6 +229,8 @@ exports.handler = async function (context, event, callback) {
        *  get taskSid based on callSid
        *  taskInfo = { "sid" : <taskSid>, "queueTargetName" : <taskQueueName>, "queueTargetSid" : <taskQueueSid> };
        */
+      console.log('callback-menu, event taskSid:', taskSid);
+      console.log('callback-menu, event CallSid:', CallSid);
       const taskInfo = await getTask(context, taskSid || CallSid);
 
       // Cancel current Task

@@ -72,6 +72,15 @@ exports.handler = async function (context, event, callback) {
   let waitMsg = '';
   let posQueueMsg = '';
 
+  const generateQueryParams = (parameters = {}) => {
+    return {
+      ...(taskSid && { taskSid }),
+      ...(isCallbackEnabled && { isCallbackEnabled }),
+      ...(isVoicemailEnabled && { isVoicemailEnabled }),
+      ...parameters
+    };
+  }
+
   /*
    *  ==========================
    *  BEGIN:  Main logic
@@ -144,29 +153,27 @@ exports.handler = async function (context, event, callback) {
       }
       if (isCallbackEnabled || isVoicemailEnabled) {
         message = 'To listen to a menu of options while on hold, press 1 at anytime.';
-        const actionQueryParams = {
-          mode: 'mainProcess',
-          ...(taskSid && { taskSid })
-        };
+        const actionQueryParams = generateQueryParams({
+          mode: 'mainProcess'
+        });
         gather = twiml.gather({
           input: 'dtmf',
+          numDigits: 1,
           timeout: '2',
           action: urlBuilder(domain, webhookPaths.queueMenu, actionQueryParams),
         });
         gather.say(sayOptions, message);
-        gather.play(domain + holdMusicUrl);
-        const redirectQueryParams = {
-          mode: 'main',
-          ...(taskSid && { taskSid })
-        };
+        gather.play(urlBuilder(domain, holdMusicUrl));
+        const redirectQueryParams = generateQueryParams({
+          mode: 'main'
+        });
         twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
       } else {
-        twiml.play(domain + holdMusicUrl)
-        const redirectQueryParams = {
+        twiml.play(urlBuilder(domain, holdMusicUrl))
+        const redirectQueryParams = generateQueryParams({
           mode: 'main',
-          skipGreeting: 'true',
-          ...(taskSid && { taskSid })
-        };
+          skipGreeting: 'true'
+        });
         twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
       }
       return callback(null, twiml);
@@ -179,30 +186,27 @@ exports.handler = async function (context, event, callback) {
         message += isVoicemailEnabled ? `Press ${digitMap.voicemailDigit} to request a voicemail...` : '';
         message += 'Press the star key to listen to these options again...';
 
-        const actionQueryParams = {
-          mode: 'menuProcess',
-          ...(taskSid && { taskSid })
-        };
+        const actionQueryParams = generateQueryParams({
+          mode: 'menuProcess'
+        });
         gather = twiml.gather({
           input: 'dtmf',
           timeout: '1',
           action: urlBuilder(domain, webhookPaths.queueMenu, actionQueryParams),
         });
         gather.say(sayOptions, message);
-        gather.play(domain + holdMusicUrl);
-        const redirectQueryParams = {
-          mode: 'main',
-          ...(taskSid && { taskSid })
-        };
+        gather.play(urlBuilder(domain, holdMusicUrl));
+        const redirectQueryParams = generateQueryParams({
+          mode: 'main'
+        });
         twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
         return callback(null, twiml);
       } else {
         twiml.say(sayOptions, 'I did not understand your selection.');
-        const redirectQueryParams = {
+        const redirectQueryParams = generateQueryParams({
           mode: 'main',
-          skipGreeting: 'true',
-          ...(taskSid && { taskSid })
-        };
+          skipGreeting: 'true'
+        });
         twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
         return callback(null, twiml);
       }
@@ -215,50 +219,45 @@ exports.handler = async function (context, event, callback) {
            *   stay in queue
            * twiml.say(sayOptions, 'Please wait for the next available agent');
            */
-          const redirectQueryParams = {
+          const redirectQueryParams = generateQueryParams({
             mode: 'main',
-            skipGreeting: 'true',
-            ...(taskSid && { taskSid })
-          };
+            skipGreeting: 'true'
+          });
           twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
           return callback(null, twiml);
         }
         case digitMap.callbackDigit: {
           //  request a callback
-          const redirectQueryParams = {
-            mode: 'main',
-            ...(taskSid && { taskSid })
-          };
+          const redirectQueryParams = generateQueryParams({
+            mode: 'main'
+          });
           twiml.redirect(urlBuilder(domain, webhookPaths.callbackMenu, redirectQueryParams));
           return callback(null, twiml);
         }
         case digitMap.voicemailDigit: {
           //  leave a voicemail
-          const redirectQueryParams = {
-            mode: 'pre-process',
-            ...(taskSid && { taskSid })
-          };
+          const redirectQueryParams = generateQueryParams({
+            mode: 'pre-process'
+          });
           twiml.redirect(urlBuilder(domain, webhookPaths.voicemailMenu, redirectQueryParams));
           return callback(null, twiml);
         }
         case '*': {
           // listen options menu again
-          const redirectQueryParams = {
+          const redirectQueryParams = generateQueryParams({
             mode: 'mainProcess',
-            Digits: '1',
-            ...(taskSid && { taskSid })
-          };
+            Digits: '1'
+          });
           twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
           return callback(null, twiml);
         }
         default: {
           //  listen to menu again
           twiml.say(sayOptions, 'I did not understand your selection.');
-          const redirectQueryParams = {
+          const redirectQueryParams = generateQueryParams({
             mode: 'mainProcess',
-            Digits: '1',
-            ...(taskSid && { taskSid })
-          };
+            Digits: '1'
+          });
           twiml.redirect(urlBuilder(domain, webhookPaths.queueMenu, redirectQueryParams));
           return callback(null, twiml);
         }
