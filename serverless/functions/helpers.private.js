@@ -75,11 +75,23 @@ function getTask(context, sid) {
  * @param {string} workspaceSid SID of the workspace the task belong to
  * @param {string} taskSid SID of the task to be cancelled
  */
-async function cancelTask(client, workspaceSid, taskSid) {
+async function cancelTask(client, workspaceSid, taskSid, reason, attributes) {
   try {
+    const taskAttributes = typeof attributes === 'string'
+      ? JSON.parse(attributes)
+      : attributes;
+
+    const newAttributes = {
+      ...taskAttributes,
+      conversations: {
+        ...taskAttributes.conversations,
+        abandoned: 'No'
+      }
+    };
     await client.taskrouter.workspaces(workspaceSid).tasks(taskSid).update({
       assignmentStatus: 'canceled',
-      reason: 'Voicemail Request',
+      attributes: JSON.stringify(newAttributes),
+      reason,
     });
   } catch (error) {
     console.log('cancelTask Error');

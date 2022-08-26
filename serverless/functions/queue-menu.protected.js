@@ -191,6 +191,7 @@ exports.handler = async function (context, event, callback) {
         });
         gather = twiml.gather({
           input: 'dtmf',
+          numDigits: 1,
           timeout: '1',
           action: urlBuilder(domain, webhookPaths.queueMenu, actionQueryParams),
         });
