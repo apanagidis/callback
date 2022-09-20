@@ -1,7 +1,6 @@
 import { combineReducers } from 'redux';
 
 //  define the Redux reducers
-import { reduce as InQueueMessagingReducer } from './ActionInQueueMessagingState';
 import { reduce as VoicemailReducer } from './VoicemailState';
 
 // Register your redux store under a unique namespace

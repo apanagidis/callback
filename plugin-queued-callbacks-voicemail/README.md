@@ -122,9 +122,8 @@ Service:
   flex-queued-callbacks-voicemail 
 Functions:
   https://<your-serverless-domain.twil.io>/callback-menu
-  https://<your-serverless-domain.twil.io>/inqueue-utils
   https://<your-serverless-domain.twil.io>/queue-menu
-  https://<your-serverless-domain.twil.io>/inqueue-voicemail
+  https://<your-serverless-domain.twil.io>/voicemail-menu
 
 Assets:
   https://<your-serverless-domain.twil.io>/assets/alertTone.mp3
