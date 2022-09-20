@@ -1,2 +1,1 @@
-export { default as CallbackComponent } from './callback';
-export { default as VoicemailComponent } from './voicemail';
+export { default as VoicemailInfoTab } from './VoicemailInfoTab';
