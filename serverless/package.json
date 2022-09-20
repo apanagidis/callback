@@ -14,6 +14,7 @@
     "node": "12"
   },
   "dependencies": {
+    "lodash": "^4.17.21",
     "moment": "^2.29.1",
     "moment-timezone": "^0.5.33",
     "twilio-flex-token-validator": "^1.5.6"

@@ -34,33 +34,54 @@ export const registerListeners = (flex, manager) => {
       : undefined;
   }
 
+  const getMatchingVoicemailTask = (task) => {
+    const { voicemailReservationSid } = task.attributes;
+
+    return voicemailReservationSid
+      ? flex.TaskHelper.getTaskByTaskSid(voicemailReservationSid)
+      : undefined;
+  }
+
   manager.events.addListener('taskWrapup', task => {
     if (!flex.TaskHelper.isOutboundCallTask(task)) {
       return;
     }
 
     const callbackTask = getMatchingCallbackTask(task);
+    const voicemailTask = getMatchingVoicemailTask(task);
 
     if (callbackTask) {
       flex.Actions.invokeAction('WrapupTask', { task: callbackTask });
+    } else if (voicemailTask) {
+      flex.Actions.invokeAction('WrapupTask', { task: voicemailTask });
     }
   })
 
-  manager.events.addListener('taskCompleted', task => {
+  manager.events.addListener('taskCompleted', async task => {
     if (!flex.TaskHelper.isOutboundCallTask(task)) {
       return;
     }
 
     const callbackTask = getMatchingCallbackTask(task);
+    const voicemailTask = getMatchingVoicemailTask(task);
 
+    let payload = {};
     if (callbackTask) {
-      const payload = { task: callbackTask };
-      const pendingCompleteTask = flex.Actions.findPendingActions('CompleteTask', payload);
-      console.debug('taskCompleted, pending callback CompleteTask:', pendingCompleteTask);
+      payload.task = callbackTask;
+    } else if (voicemailTask) {
+      payload.task = voicemailTask;
+    } else {
+      return;
+    }
 
-      if (!pendingCompleteTask || Object.keys(pendingCompleteTask)?.length === 0) {
-        flex.Actions.invokeAction('CompleteTask', payload);
-      }
+    const pendingCompleteTask = flex.Actions.findPendingActions('CompleteTask', payload);
+    console.debug('taskCompleted, pending CompleteTask action:', pendingCompleteTask);
+
+    if (!pendingCompleteTask || Object.keys(pendingCompleteTask)?.length === 0) {
+      flex.Actions.invokeAction('CompleteTask', payload);
+    } else {
+      await pendingCompleteTask[0];
+      flex.Actions.invokeAction('CompleteTask', payload);
     }
   });
 };

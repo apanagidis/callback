@@ -2,9 +2,10 @@ import { combineReducers } from 'redux';
 
 //  define the Redux reducers
 import { reduce as InQueueMessagingReducer } from './ActionInQueueMessagingState';
+import { reduce as VoicemailReducer } from './VoicemailState';
 
 // Register your redux store under a unique namespace
-export const namespace = 'in-queue-redux';
+export const namespace = 'callback-voicemail';
 
 /*
  * Combine the reducers
@@ -12,5 +13,5 @@ export const namespace = 'in-queue-redux';
  *  Store:  state[<namespace>].<identifier>.{state object}
  */
 export default combineReducers({
-  InQueueMessaging: InQueueMessagingReducer,
+  voicemail: VoicemailReducer,
 });

@@ -40,9 +40,10 @@ const options = require(optionsPath);
 // create the voicemail task
 async function createVoicemailTask(event, client, taskInfo, ringback) {
   const time = getTime(options.TimeZone);
+  const taskAttributes = JSON.parse(taskInfo.data.attributes);
 
-  const taskAttributes = {
-    taskType: 'voicemail',
+  const newTaskAttributes = {
+    type: 'voicemail',
     ringback,
     to: event.Caller, // Inbound caller
     direction: 'inbound',
@@ -51,11 +52,13 @@ async function createVoicemailTask(event, client, taskInfo, ringback) {
     recordingUrl: event.RecordingUrl,
     recordingSid: event.RecordingSid,
     transcriptionSid: event.TranscriptionSid,
-    transcriptionText: event.TranscriptionStatus === 'completed' ? event.TranscriptionText : 'Transcription failed',
+    transcriptionText: 'Use custom function + API to retrieve',
     callTime: time,
-    queueTargetName: taskInfo.taskQueueName,
-    queueTargetSid: taskInfo.taskQueueSid,
-    workflowTargetSid: taskInfo.workflowSid,
+    conversations: {
+      ...taskAttributes.conversations,
+      conversation_id: taskInfo.taskSid,
+      communication_channel: 'Voicemail'
+    },
     // eslint-disable-next-line camelcase
     ui_plugin: {
       vmCallButtonAccessibility: false,
@@ -66,10 +69,9 @@ async function createVoicemailTask(event, client, taskInfo, ringback) {
 
   try {
     await client.taskrouter.workspaces(taskInfo.workspaceSid).tasks.create({
-      attributes: JSON.stringify(taskAttributes),
+      attributes: JSON.stringify(newTaskAttributes),
       type: 'voicemail',
-      taskChannel: 'voicemail',
-      priority: options.VoiceMailTaskPriority,
+      taskChannel: 'voice',
       workflowSid: taskInfo.workflowSid,
     });
   } catch (error) {
@@ -86,9 +88,9 @@ exports.handler = async function (context, event, callback) {
   const {
     CallSid,
     mode,
-    taskSid
   } = event;
 
+  let taskSid = event.taskSid;
   let queryParams;
 
   // Load options
@@ -99,10 +101,17 @@ exports.handler = async function (context, event, callback) {
     case 'pre-process': {
       //  initial logic to cancel the task and prepare the call for Recording
       //  Get taskSid based on taskSid or CallSid
+      const taskInfo = await getTask(context, taskSid || CallSid);
       if (!taskSid) {
-        //TODO: Review this to see if it needs to change
-        const taskInfo = await getTask(context, CallSid);
         ({ taskSid } = taskInfo);
+      }
+
+      try {
+        //  Cancel (update) the task given taskSid
+        await cancelTask(client, context.TWILIO_WORKSPACE_SID, taskSid, 'Voicemail Requested', taskInfo.data.attributes);
+      } catch (error) {
+        console.log('cancelTask Error');
+        handleError(error);
       }
 
       // Redirect Call to Voicemail main menu
@@ -118,20 +127,17 @@ exports.handler = async function (context, event, callback) {
         handleError(error);
       }
 
-      //  Cancel (update) the task given taskSid
-      await cancelTask(client, context.TWILIO_WORKSPACE_SID, taskSid);
-
       return callback(null, '');
     }
     case 'main': {
       //  Main logic for Recording the voicemail
       const actionQueryParams = {
         mode: 'success',
-        CallSid
+        ...(taskSid && { taskSid })
       };
       const transcribeQueryParams = {
         mode: 'submitVoicemail',
-        CallSid
+        ...(taskSid && { taskSid })
       };
       twiml.say(sayOptions, 'Please leave a message at the tone.  Press the star key when finished.');
       twiml.record({

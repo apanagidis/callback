@@ -117,18 +117,18 @@ Env Variables
 ✔ Serverless project successfully deployed
 
 Deployment Details
-Domain: flex-queued-callbacks-voicemail-xxxx-dev.twil.io
+Domain: <your-serverless-domain.twil.io>
 Service:
   flex-queued-callbacks-voicemail 
 Functions:
-  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/callback-menu
-  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/inqueue-utils
-  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/queue-menu
-  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/inqueue-voicemail
+  https://<your-serverless-domain.twil.io>/callback-menu
+  https://<your-serverless-domain.twil.io>/inqueue-utils
+  https://<your-serverless-domain.twil.io>/queue-menu
+  https://<your-serverless-domain.twil.io>/inqueue-voicemail
 
 Assets:
-  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/assets/alertTone.mp3
-  https://flex-queued-callbacks-voicemail-xxxx-dev.twil.io/assets/guitar_music.mp3
+  https://<your-serverless-domain.twil.io>/assets/alertTone.mp3
+  https://<your-serverless-domain.twil.io>/assets/guitar_music.mp3
 ```
 
 _Note:_ Copy and save the domain returned when you deploy a function. You will need it in the next step. If you forget to copy the domain, you can also find it by navigating to [Functions > API](https://www.twilio.com/console/functions/api) in the Twilio Console.
@@ -142,13 +142,13 @@ Once you have deployed the function, it is time to deploy the plugin to your Fle
 Run the following commands in the plugin root directory. We will leverage the Twilio CLI to build and deploy the Plugin.
 
 1. Rename `.env.example` to `.env`.
-2. Open `.env` with your text editor and modify the `REACT_APP_SERVICE_BASE_URL` property to the Domain name you copied in the previous step. Make sure to prefix it with "https://".
+2. Open `.env` with your text editor and modify the `REACT_APP_SERVERLESS_DOMAIN` property to the Domain name you copied in the previous step.
 	
 	```
-	plugin-queued-callbacks-and-voicemail $ mv .env.example .env
+	plugin-queued-callbacks-voicemail $ mv .env.example .env
 	
 	# .env
-	REACT_APP_SERVICE_BASE_URL=https://flex-queued-callbacks-voicemail-4135-dev.twil.io
+	REACT_APP_SERVERLESS_DOMAIN=<your-serverless-domain.twil.io>
 	```
 
 3. When you are ready to deploy the plugin, run the following in a command shell:

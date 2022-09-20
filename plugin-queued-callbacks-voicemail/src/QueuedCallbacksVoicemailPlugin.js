@@ -1,12 +1,13 @@
-import { VERSION, TaskHelper } from '@twilio/flex-ui';
+import { VERSION, Manager, TaskHelper } from '@twilio/flex-ui';
 import { FlexPlugin } from '@twilio/flex-plugin';
 import React from 'react';
-import VoicemailIcon from '@material-ui/icons/Voicemail';
+import { CustomizationProvider } from '@twilio-paste/core/customization';
 import { ChevronDoubleRightIcon } from '@twilio-paste/icons/esm/ChevronDoubleRightIcon';
+import { VoicemailIcon } from '@twilio-paste/icons/esm/VoicemailIcon';
 
 import reducers, { namespace } from './states';
 import { registerListeners } from './listeners';
-import { VoicemailComponent } from './components';
+import { VoicemailInfoTab } from './components';
 
 const PLUGIN_NAME = 'QueuedCallbacksVoicemailPlugin';
 
@@ -27,11 +28,35 @@ export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
     registerListeners(flex, manager);
 
     this.registerCallbackChannel(flex, manager);
-    //this.registerVoicemailChannel(flex, manager);
+    this.registerVoicemailChannel(flex, manager);
 
     manager.strings.TaskAssigned = "Assigned | {{helper.durationSinceUpdate}}"
     manager.strings.TaskWrapup = "Wrap up | {{helper.durationSinceUpdate}}";
+
+    flex.setProviders({
+      PasteThemeProvider: CustomizationProvider
+    });
   }
+
+  hasMatchingOutboundCallTask = (props) => {
+    const manager = Manager.getInstance();
+    const taskAttributes = props.task.attributes;
+    const conversationId = taskAttributes?.conversations?.conversation_id;
+    const workerTasks = manager.store.getState().flex?.worker?.tasks || new Map();
+
+    let result = false;
+
+    for (const task of workerTasks.values()) {
+      if (TaskHelper.isOutboundCallTask(task) &&
+        conversationId === task?.attributes?.conversations?.conversation_id
+      ) {
+        result = true;
+        break;
+      }
+    }
+
+    return result;
+  };
 
   /**
    * Registers the {@link CallbackComponent}
@@ -41,10 +66,7 @@ export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
     
     const CallbackChannel = flex.DefaultTaskChannels.createDefaultTaskChannel(
       'callback',
-      (task) => task.taskChannelUniqueName === 'voice' && task.attributes.type === 'callback',
-      'CallbackIcon',
-      'CallbackIcon',
-      'palegreen',
+      (task) => task.taskChannelUniqueName === 'voice' && task.attributes.type === 'callback'
     );
     // Basic Callback Channel Settings
     CallbackChannel.templates.TaskListItem.firstLine = (task) => `${task.attributes.name}`;
@@ -62,29 +84,11 @@ export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
     CallbackChannel.icons.main = callbackChannelTaskItemIcon;
 
     // Modified Components
-    const hasMatchingOutboundCallTask = (props) => {
-      const taskAttributes = props.task.attributes;
-      const conversationId = taskAttributes?.conversations?.conversation_id;
-      const workerTasks = manager.store.getState().flex?.worker?.tasks || new Map();
-
-      let result = false;
-
-      for (const task of workerTasks.values()) {
-        if (TaskHelper.isOutboundCallTask(task) &&
-          conversationId === task?.attributes?.conversations?.conversation_id
-        ) {
-          result = true;
-          break;
-        }
-      }
-
-      return result;
-    };
     CallbackChannel.removedComponents = [{
       target: 'TaskCanvasHeader',
       key: 'actions',
       options: {
-        if: hasMatchingOutboundCallTask
+        if: this.hasMatchingOutboundCallTask
       }
     }];
     // Register Lead Channel
@@ -92,28 +96,37 @@ export default class QueuedCallbacksVoicemailPlugin extends FlexPlugin {
   }
 
   /**
-   * Registers the {@link VoicemailComponent}
+   * Registers the {@link VoicemailInfoTab}
    */
   registerVoicemailChannel(flex, manager) {
     const VoiceMailChannel = flex.DefaultTaskChannels.createDefaultTaskChannel(
       'voicemail',
-      (task) => task.taskChannelUniqueName === 'voice' && task.attributes.type === 'voicemail',
-      'VoicemailIcon',
-      'VoicemailIcon',
-      'deepskyblue',
+      (task) => task.taskChannelUniqueName === 'voice' && task.attributes.type === 'voicemail'
     );
     // Basic Voicemail Channel Settings
-    VoiceMailChannel.templates.TaskListItem.firstLine = (task) => `${task.queueName}: ${task.attributes.name}`;
-    VoiceMailChannel.templates.TaskCanvasHeader.title = (task) => `${task.queueName}: ${task.attributes.name}`;
+    VoiceMailChannel.templates.TaskListItem.firstLine = (task) => `${task.attributes.name}`;
+    VoiceMailChannel.templates.TaskCanvasHeader.title = (task) => `${task.attributes.name}`;
+    VoiceMailChannel.templates.TaskCanvasHeader.endButton.Wrapping = 'Complete';
     VoiceMailChannel.templates.IncomingTaskCanvas.firstLine = (task) => task.queueName;
     // Lead Channel Icon
-    VoiceMailChannel.icons.active = <VoicemailIcon key="active-voicemail-icon" />;
-    VoiceMailChannel.icons.list = <VoicemailIcon key="list-voicemail-icon" />;
-    VoiceMailChannel.icons.main = <VoicemailIcon key="main-voicemail-icon" />;
+    const voicemailChannelTaskItemIcon = (<VoicemailIcon decorative={true} />);
+    VoiceMailChannel.icons.active = voicemailChannelTaskItemIcon;
+    VoiceMailChannel.icons.list = voicemailChannelTaskItemIcon;
+    VoiceMailChannel.icons.main = voicemailChannelTaskItemIcon;
+
+    // Modified Components
+    VoiceMailChannel.removedComponents = [{
+      target: 'TaskCanvasHeader',
+      key: 'actions',
+      options: {
+        if: this.hasMatchingOutboundCallTask
+      }
+    }];
+
     // Register Lead Channel
     flex.TaskChannels.register(VoiceMailChannel);
 
-    flex.TaskInfoPanel.Content.replace(<VoicemailComponent key="voicemail-task-info-panel" manager={manager} />, {
+    flex.TaskInfoPanel.Content.replace(<VoicemailInfoTab key="voicemail-task-info-panel" manager={manager} />, {
       sortOrder: -1,
       if: (props) => props.task.attributes.type === 'voicemail',
     });
