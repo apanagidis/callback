@@ -1,11 +1,12 @@
 import React from 'react';
-import { Actions, Button, TaskHelper } from '@twilio/flex-ui';
+import { Actions, TaskHelper } from '@twilio/flex-ui';
 import moment from 'moment';
 import 'moment-timezone';
 import { Label } from '@twilio-paste/core/label';
 import { TextArea } from '@twilio-paste/core/textarea'
 import { Grid, Column } from '@twilio-paste/core/grid';
 import { Stack } from '@twilio-paste/core/stack';
+import { Button } from '@twilio-paste/core/button';
 
 import { 
   ButtonsContainer,
@@ -24,15 +25,20 @@ export default class VoicemailInfoTab extends React.Component {
     super(props);
 
     this.state = {
-      recordingUrl: null,
-      recordingError: null
+      errorRetryAttempts: 0
     }
+    this.maxRetryAttempts = 5;
   }
 
   async componentDidMount() {
-    const { setTranscription, task, transcription } = this.props;
+    const {
+      recording,
+      setTranscription,
+      task,
+      transcription
+    } = this.props;
 
-    if (transcription && this.state.recordingUrl) {
+    if (transcription && recording) {
       return;
     }
 
@@ -40,17 +46,11 @@ export default class VoicemailInfoTab extends React.Component {
     const recordingSid = attributes?.recordingSid;
     const transcriptionSid = attributes?.transcriptionSid;
 
-    if (recordingSid && !this.state.recordingUrl) {
-      try {
-        const recordingMedia = await RecordingService.getMediaUrl(recordingSid);
-        this.setState({ recordingUrl: recordingMedia.media_url });
-      } catch (error) {
-        console.error('Error getting recording media URL.', error);
-        this.setState({ recordingError: error.message });
-      }
+    if (recordingSid && (!recording || recording.error)) {
+      this.populateMediaUrl(recordingSid);
     }
 
-    if (transcriptionSid && !transcription) {
+    if (transcriptionSid && (!transcription || transcription.error)) {
       try {
         const response = await RecordingService.getTranscription(transcriptionSid);
         setTranscription(transcriptionSid, response.transcription);
@@ -58,6 +58,17 @@ export default class VoicemailInfoTab extends React.Component {
         console.error(`Error getting transcription for SID ${transcriptionSid}.`, error);
         setTranscription(transcriptionSid, { error });
       }
+    }
+  }
+
+  populateMediaUrl = async (recordingSid) => {
+    const { setRecordingMediaUrl } = this.props;
+    try {
+      const response = await RecordingService.getMediaUrl(recordingSid);
+      setRecordingMediaUrl(recordingSid, response.media_url)
+    } catch (error) {
+      console.error('Error getting recording media URL.', error);
+      setRecordingMediaUrl(recordingSid, { error })
     }
   }
 
@@ -119,8 +130,26 @@ export default class VoicemailInfoTab extends React.Component {
     return segment_link && segment_link === recordingUrl;
   }
 
+  handlePlayerPlaying = (e) => {
+    if (this.state.errorRetryAttempts > 0) {
+      // Resetting the error count when the recording is playing successfully
+      this.setState({ errorRetryAttempts: 0 });
+    }
+  }
+
+  handlePlayerError = (error) => {
+    const { task } = this.props;
+    const attributes = task?.attributes;
+    const recordingSid = attributes?.recordingSid;
+
+    if (this.state.errorRetryAttempts < this.maxRetryAttempts) {
+      this.setState({ errorRetryAttempts: this.state.errorRetryAttempts + 1 });
+      this.populateMediaUrl(recordingSid);
+    }
+  }
+
   render() {
-    const { task, transcription } = this.props;
+    const { recording, task, transcription } = this.props;
     const attributes = task?.attributes;
     const timeReceived = moment(attributes?.callTime.time_recvd);
     const localTz = moment.tz.guess();
@@ -131,7 +160,8 @@ export default class VoicemailInfoTab extends React.Component {
       'Transcript error. Notify your System Administrator. Error message: ' +
       transcription?.error?.message
     );
-    const recordingUrl = attributes?.recordingUrl;
+
+    const mediaUrl = recording?.mediaUrl;
 
     return (
       <Container>
@@ -143,7 +173,7 @@ export default class VoicemailInfoTab extends React.Component {
               onClick={this.startCall}
               disabled={this.hasPlacedCall()}
             >
-              Call Contact
+              {this.hasPlacedCall() ? 'Call Placed' : 'Call Contact'}
             </Button>
             <Button
               //style={styles.cbButton}
@@ -151,14 +181,21 @@ export default class VoicemailInfoTab extends React.Component {
               onClick={this.saveVoicemail}
               disabled={this.hasSavedVoicemail()}
             >
-              Save Voicemail
+              {this.hasSavedVoicemail() ? 'Voicemail Saved' : 'Save Voicemail'}
             </Button>
           </Stack>
           
         </ButtonsContainer>
         <Label>Play Voicemail</Label>
         <PlayerContainer>
-          <Player ref="audio_tag" src={this.state.recordingUrl} controls />
+          <Player
+            ref="audio_tag"
+            src={mediaUrl}
+            controls
+            controlsList="nodownload"
+            onError={this.handlePlayerError}
+            onPlaying={this.handlePlayerPlaying}
+          />
         </PlayerContainer>
         <TranscriptContainer>
           <Label>Voicemail Transcript</Label>
