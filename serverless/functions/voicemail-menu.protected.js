@@ -67,6 +67,9 @@ async function createVoicemailTask(event, client, taskInfo, ringback) {
     placeCallRetry: 1,
   };
 
+  // Removing the conversations.abandoned property in case task is canceled before reaching an agent
+  delete newTaskAttributes.conversations.abandoned;
+
   try {
     await client.taskrouter.workspaces(taskInfo.workspaceSid).tasks.create({
       attributes: JSON.stringify(newTaskAttributes),
