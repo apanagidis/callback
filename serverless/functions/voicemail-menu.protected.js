@@ -52,19 +52,12 @@ async function createVoicemailTask(event, client, taskInfo, ringback) {
     recordingUrl: event.RecordingUrl,
     recordingSid: event.RecordingSid,
     transcriptionSid: event.TranscriptionSid,
-    transcriptionText: 'Use custom function + API to retrieve',
     callTime: time,
     conversations: {
       ...taskAttributes.conversations,
       conversation_id: taskInfo.taskSid,
       communication_channel: 'Voicemail'
-    },
-    // eslint-disable-next-line camelcase
-    ui_plugin: {
-      vmCallButtonAccessibility: false,
-      vmRecordButtonAccessibility: true,
-    },
-    placeCallRetry: 1,
+    }
   };
 
   // Removing the conversations.abandoned property in case task is canceled before reaching an agent
