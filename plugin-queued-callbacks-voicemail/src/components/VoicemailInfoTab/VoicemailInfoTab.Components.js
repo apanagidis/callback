@@ -8,6 +8,7 @@ export const Container = styled('div')`
 
 export const ButtonsContainer = styled('div')`
   margin-bottom: 10px;
+  padding: 2px;
 `;
 
 export const PlayerContainer = styled('div')`
